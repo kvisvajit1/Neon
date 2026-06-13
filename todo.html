@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REDMAGIC TODO - Task Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+        
+        :root {
+            --cyber-red: #e63946;
+            --cyber-black: #050505;
+            --cyber-dark: #0a0a0a;
+            --cyber-gray: #1a1a1a;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: var(--cyber-black);
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .scanline {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.1) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 5000;
+            opacity: 0.08;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            z-index: 1;
+            position: relative;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px solid var(--cyber-red);
+            padding-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            color: var(--cyber-red);
+            text-shadow: 0 0 20px rgba(230, 57, 70, 0.5);
+            font-weight: 900;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 0.9rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .input-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: var(--cyber-gray);
+            border: 2px solid var(--cyber-red);
+            clip-path: polygon(12% 0, 100% 0, 100% 88%, 88% 100%, 0 100%, 0 12%);
+        }
+        
+        .input-section input {
+            flex: 1;
+            padding: 12px 15px;
+            background: var(--cyber-dark);
+            border: 1px solid var(--cyber-red);
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            transition: 0.3s;
+        }
+        
+        .input-section input:focus {
+            outline: none;
+            background: rgba(230, 57, 70, 0.1);
+            box-shadow: 0 0 10px rgba(230, 57, 70, 0.3);
+        }
+        
+        .input-section input::placeholder {
+            color: #555;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            background: var(--cyber-red);
+            border: none;
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+        
+        .btn:hover {
+            background: #ff4757;
+            box-shadow: 0 0 15px rgba(230, 57, 70, 0.5);
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: var(--cyber-gray);
+            border: 1px solid var(--cyber-red);
+            padding: 15px;
+            text-align: center;
+            clip-path: polygon(10% 0, 100% 0, 100% 90%, 90% 100%, 0 100%, 0 10%);
+        }
+        
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 900;
+            color: var(--cyber-red);
+            text-shadow: 0 0 10px rgba(230, 57, 70, 0.5);
+        }
+        
+        .stat-card .label {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 8px;
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            padding: 8px 15px;
+            background: var(--cyber-gray);
+            border: 1px solid var(--cyber-red);
+            color: #fff;
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+        
+        .filter-btn.active {
+            background: var(--cyber-red);
+            color: #000;
+            font-weight: 700;
+        }
+        
+        .filter-btn:hover {
+            box-shadow: 0 0 10px rgba(230, 57, 70, 0.3);
+        }
+        
+        .todo-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .todo-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: var(--cyber-gray);
+            border-left: 4px solid var(--cyber-red);
+            transition: 0.3s;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .todo-item:hover {
+            background: rgba(230, 57, 70, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .todo-item.completed {
+            opacity: 0.6;
+        }
+        
+        .todo-item.completed .todo-text {
+            text-decoration: line-through;
+            color: #888;
+        }
+        
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--cyber-red);
+        }
+        
+        .todo-text {
+            flex: 1;
+            font-size: 0.95rem;
+            word-break: break-word;
+        }
+        
+        .todo-priority {
+            padding: 4px 10px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            border-radius: 2px;
+            letter-spacing: 1px;
+        }
+        
+        .priority-high {
+            background: rgba(230, 57, 70, 0.3);
+            color: var(--cyber-red);
+            border: 1px solid var(--cyber-red);
+        }
+        
+        .priority-medium {
+            background: rgba(255, 193, 7, 0.3);
+            color: #ffc107;
+            border: 1px solid #ffc107;
+        }
+        
+        .priority-low {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4caf50;
+            border: 1px solid #4caf50;
+        }
+        
+        .todo-date {
+            font-size: 0.75rem;
+            color: #888;
+            min-width: 80px;
+            text-align: right;
+        }
+        
+        .btn-delete {
+            padding: 6px 12px;
+            background: rgba(230, 57, 70, 0.2);
+            border: 1px solid var(--cyber-red);
+            color: var(--cyber-red);
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            transition: 0.3s;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        
+        .btn-delete:hover {
+            background: var(--cyber-red);
+            color: #000;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: #666;
+        }
+        
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        .empty-state p {
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+        }
+        
+        .actions-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn-secondary {
+            padding: 10px 20px;
+            background: var(--cyber-gray);
+            border: 1px solid var(--cyber-red);
+            color: var(--cyber-red);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+        
+        .btn-secondary:hover {
+            background: var(--cyber-red);
+            color: #000;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--cyber-red);
+            color: #000;
+            padding: 15px 25px;
+            font-weight: 700;
+            border-radius: 2px;
+            animation: slideUp 0.3s ease-out;
+            z-index: 6000;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .input-section {
+                flex-direction: column;
+            }
+            
+            .todo-item {
+                flex-wrap: wrap;
+            }
+            
+            .todo-date {
+                order: 3;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="scanline"></div>
+
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <h1>⚡ REDMAGIC TODO</h1>
+        <p>Task Manager with Local Storage</p>
+    </div>
+    
+    <!-- Stats -->
+    <div class="stats">
+        <div class="stat-card">
+            <div class="number" id="stat-total">0</div>
+            <div class="label">Total Tasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="stat-completed">0</div>
+            <div class="label">Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="stat-pending">0</div>
+            <div class="label">Pending</div>
+        </div>
+    </div>
+    
+    <!-- Input Section -->
+    <div class="input-section">
+        <input 
+            type="text" 
+            id="todo-input" 
+            placeholder="Add a new task..." 
+            autocomplete="off"
+        >
+        <select id="priority-select" style="padding: 12px 15px; background: var(--cyber-dark); border: 1px solid var(--cyber-red); color: #fff; font-family: 'JetBrains Mono', monospace; cursor: pointer;">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+        </select>
+        <button class="btn" onclick="addTodo()">ADD TASK</button>
+    </div>
+    
+    <!-- Actions Bar -->
+    <div class="actions-bar">
+        <button class="btn-secondary" onclick="clearCompleted()">Clear Completed</button>
+        <button class="btn-secondary" onclick="exportTodos()">Export</button>
+        <button class="btn-secondary" onclick="clearAll()">Clear All</button>
+    </div>
+    
+    <!-- Filter Buttons -->
+    <div class="filter-buttons">
+        <button class="filter-btn active" onclick="filterTodos('all')">All</button>
+        <button class="filter-btn" onclick="filterTodos('active')">Active</button>
+        <button class="filter-btn" onclick="filterTodos('completed')">Completed</button>
+        <button class="filter-btn" onclick="filterTodos('high')">High Priority</button>
+    </div>
+    
+    <!-- Todo List -->
+    <div class="todo-list" id="todo-list">
+        <div class="empty-state">
+            <p>✨ No tasks yet. Add one to get started!</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Constants
+    const STORAGE_KEY = 'redmagic_todos';
+    const STORAGE_FILTER = 'redmagic_filter';
+    
+    // State
+    let todos = [];
+    let currentFilter = 'all';
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadTodos();
+        currentFilter = localStorage.getItem(STORAGE_FILTER) || 'all';
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[onclick="filterTodos('${currentFilter}')"]`).classList.add('active');
+        render();
+        
+        // Enter key to add todo
+        document.getElementById('todo-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addTodo();
+        });
+    });
+    
+    // Add Todo
+    function addTodo() {
+        const input = document.getElementById('todo-input');
+        const priority = document.getElementById('priority-select').value;
+        const text = input.value.trim();
+        
+        if (!text) {
+            showToast('Please enter a task!');
+            return;
+        }
+        
+        const todo = {
+            id: Date.now(),
+            text: text,
+            completed: false,
+            priority: priority,
+            createdAt: new Date().toLocaleDateString(),
+            createdTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        
+        todos.unshift(todo);
+        saveTodos();
+        input.value = '';
+        input.focus();
+        render();
+        showToast('Task added! ✓');
+        console.log('✅ Task Added:', todo);
+    }
+    
+    // Toggle Todo
+    function toggleTodo(id) {
+        const todo = todos.find(t => t.id === id);
+        if (todo) {
+            todo.completed = !todo.completed;
+            saveTodos();
+            render();
+            showToast(todo.completed ? 'Task completed! 🎉' : 'Task restored');
+            console.log('✔️ Task Toggled:', todo);
+        }
+    }
+    
+    // Delete Todo
+    function deleteTodo(id) {
+        const index = todos.findIndex(t => t.id === id);
+        if (index !== -1) {
+            const deleted = todos[index];
+            todos.splice(index, 1);
+            saveTodos();
+            render();
+            showToast('Task deleted');
+            console.log('🗑️ Task Deleted:', deleted);
+        }
+    }
+    
+    // Filter Todos
+    function filterTodos(filter) {
+        currentFilter = filter;
+        localStorage.setItem(STORAGE_FILTER, filter);
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[onclick="filterTodos('${filter}')"]`).classList.add('active');
+        render();
+        console.log('🔍 Filter Applied:', filter);
+    }
+    
+    // Clear Completed
+    function clearCompleted() {
+        const before = todos.length;
+        todos = todos.filter(t => !t.completed);
+        if (before !== todos.length) {
+            saveTodos();
+            render();
+            showToast(`${before - todos.length} completed tasks removed`);
+            console.log('🧹 Completed Tasks Cleared');
+        }
+    }
+    
+    // Clear All
+    function clearAll() {
+        if (confirm('⚠️ Are you sure you want to delete ALL tasks? This cannot be undone!')) {
+            todos = [];
+            saveTodos();
+            render();
+            showToast('All tasks cleared');
+            console.log('💥 All Tasks Cleared');
+        }
+    }
+    
+    // Export Todos
+    function exportTodos() {
+        const data = JSON.stringify(todos, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `redmagic-todos-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Todos exported! 📥');
+        console.log('📤 Todos Exported:', todos.length, 'tasks');
+    }
+    
+    // Get Filtered Todos
+    function getFilteredTodos() {
+        switch (currentFilter) {
+            case 'active':
+                return todos.filter(t => !t.completed);
+            case 'completed':
+                return todos.filter(t => t.completed);
+            case 'high':
+                return todos.filter(t => t.priority === 'high');
+            default:
+                return todos;
+        }
+    }
+    
+    // Render
+    function render() {
+        const list = document.getElementById('todo-list');
+        const filtered = getFilteredTodos();
+        
+        // Update stats
+        const completed = todos.filter(t => t.completed).length;
+        document.getElementById('stat-total').textContent = todos.length;
+        document.getElementById('stat-completed').textContent = completed;
+        document.getElementById('stat-pending').textContent = todos.length - completed;
+        
+        if (filtered.length === 0) {
+            list.innerHTML = `
+                <div class="empty-state">
+                    <p>✨ ${currentFilter === 'completed' ? 'No completed tasks yet' : currentFilter === 'active' ? 'All tasks completed!' : currentFilter === 'high' ? 'No high priority tasks' : 'No tasks yet'}. ${currentFilter === 'all' ? 'Add one to get started!' : ''}</p>
+                </div>
+            `;
+            return;
+        }
+        
+        list.innerHTML = filtered.map(todo => `
+            <div class="todo-item ${todo.completed ? 'completed' : ''}">
+                <input 
+                    type="checkbox" 
+                    class="checkbox" 
+                    ${todo.completed ? 'checked' : ''}
+                    onchange="toggleTodo(${todo.id})"
+                >
+                <div class="todo-text">${escapeHtml(todo.text)}</div>
+                <span class="todo-priority priority-${todo.priority}">${todo.priority}</span>
+                <div class="todo-date">${todo.createdAt}</div>
+                <button class="btn-delete" onclick="deleteTodo(${todo.id})">Delete</button>
+            </div>
+        `).join('');
+    }
+    
+    // Save Todos
+    function saveTodos() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+        console.log('💾 Todos Saved to Local Storage:', todos.length, 'tasks');
+    }
+    
+    // Load Todos
+    function loadTodos() {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        todos = stored ? JSON.parse(stored) : [];
+        console.log('📖 Todos Loaded from Local Storage:', todos.length, 'tasks');
+    }
+    
+    // Show Toast
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.animation = 'slideUp 0.3s ease-out reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
+    }
+    
+    // Escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+</body>
+</html>
