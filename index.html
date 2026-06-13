@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>REDMAGIC // SUPABASE CORE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+        :root { --cyber-red: #e63946; --cyber-black: #050505; }
+        body.light-mode { background: #fff; color: #111; }
+        body.light-mode .bg-black, body.light-mode .bg-zinc-900, body.light-mode .bg-zinc-900\/50 { background: #fff !important; }
+        body.light-mode .bg-\[\#e63946\] { background: #ffe0e0 !important; color: #111 !important; }
+        body { background: var(--cyber-black); color: #fff; font-family: 'JetBrains Mono', monospace; margin: 0; overflow: hidden; height: 100vh; transition: 0.2s; }
+        .view-panel { display: none; flex-direction: column; height: 100%; width: 100%; position: absolute; top: 0; left: 0; background: var(--cyber-black); }
+        .view-panel.active { display: flex; }
+        .clip-path-cyber { clip-path: polygon(12% 0, 100% 0, 100% 88%, 88% 100%, 0 100%, 0 12%); }
+        .clip-path-msg-r { clip-path: polygon(0 0, 92% 0, 100% 25%, 100% 100%, 0 100%); }
+        .clip-path-msg-l { clip-path: polygon(8% 0, 100% 0, 100% 100%, 0 100%, 0 25%); }
+        .comment-drawer { position: fixed; bottom: 0; left: 0; right: 0; background: #0a0a0a; border-top: 2px solid var(--cyber-red); transform: translateY(100%); transition: 0.25s; z-index: 3000; }
+        .comment-drawer.active { transform: translateY(0); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #e63946; border-radius: 10px; }
+        .live-pulse { animation: pulse-glow 0.8s infinite alternate; background: #e63946 !important; }
+        @keyframes pulse-glow { 0% { opacity: 0.4; } 100% { opacity: 1; } }
+        .feed-post { border-bottom: 1px solid #2a1a1a; padding-bottom: 1.25rem; margin-bottom: 1.25rem; }
+        .chat-img-clickable { cursor: pointer; }
+        .scanline { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.1) 50%); background-size: 100% 4px; pointer-events: none; z-index: 5000; opacity: 0.08; }
+    </style>
+</head>
+<body>
+<div class="scanline"></div>
+
+<!-- AUTH PANEL -->
+<div id="view-auth" class="view-panel active items-center justify-center p-6">
+    <div class="w-full max-w-sm border border-[#e6394633] p-8 bg-black relative cyber-glow clip-path-cyber">
+        <div class="absolute top-0 left-0 w-full h-1" style="background: repeating-linear-gradient(45deg, #e63946, #e63946 10px, #000 10px, #000 20px); background-size: 30px 30px;"></div>
+        <h1 class="text-2xl font-black text-center text-[#e63946] italic mb-8">REDMAGIC LOGIN</h1>
+        <div class="flex gap-4 mb-6 justify-center">
+            <button onclick="toggleAuthMode('login')" id="btn-mode-login" class="text-[9px] font-bold text-[#e63946]">ACCESS</button>
+            <button onclick="toggleAuthMode('signup')" id="btn-mode-signup" class="text-[9px] font-bold text-[#e63946] opacity-30">ENLIST</button>
+        </div>
+        <div id="signup-fields" class="hidden space-y-4 mb-4">
+            <input type="text" id="reg-handle" placeholder="HANDLE (unique)" class="w-full bg-zinc-900 border-b border-[#e6394622] py-3 px-2 text-[10px] outline-none text-[#e63946]">
+            <input type="email" id="reg-email" placeholder="EMAIL" class="w-full bg-zinc-900 border-b border-[#e6394622] py-3 px-2 text-[10px] outline-none text-[#e63946]">
+        </div>
+        <div class="space-y-4">
+            <input type="email" id="auth-email" placeholder="EMAIL" class="w-full bg-zinc-900 border-b border-[#e6394622] py-3 px-2 text-[10px] outline-none text-[#e63946]">
+            <input type="password" id="auth-pass" placeholder="PASSWORD" class="w-full bg-zinc-900 border-b border-[#e6394622] py-3 px-2 text-[10px] outline-none text-[#e63946]">
+        </div>
+        <div id="auth-error" class="text-[8px] text-red-500 mt-4 text-center hidden"></div>
+        <button id="auth-submit-btn" onclick="handleAuthSubmit()" class="w-full bg-[#e63946] text-black font-black py-4 clip-path-cyber text-[10px] uppercase mt-8">ENTER COMBAT ZONE</button>
+    </div>
+</div>
+
+<!-- MAIN DASHBOARD -->
+<div id="view-main" class="view-panel max-w-md mx-auto border-x border-[#e6394611]">
+    <header class="h-16 border-b border-[#e6394611] flex items-center justify-between px-4 bg-black shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 clip-path-cyber border border-[#e6394655] overflow-hidden bg-zinc-900">
+                <img id="user-avatar-mini" src="" class="w-full h-full object-cover">
+            </div>
+            <button onclick="showView('view-search')" class="bg-[#e6394608] border border-[#e6394615] px-3 py-1.5 clip-path-cyber text-[8px] font-black text-[#e63946]">FIND USER</button>
+        </div>
+        <button onclick="viewProfile(currentUserHandle)" class="text-[#e63946] p-2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></button>
+    </header>
+    <div class="flex border-b border-[#e6394608] text-[9px] font-black uppercase bg-black">
+        <div id="tab-direct" onclick="switchTab('direct')" class="flex-1 py-4 text-center border-b-2 border-[#e63946] text-[#e63946] cursor-pointer">Messages</div>
+        <div id="tab-vocal" onclick="switchTab('vocal')" class="flex-1 py-4 text-center border-b-2 border-transparent opacity-30 text-[#e63946] cursor-pointer">RedMagic Home</div>
+    </div>
+    <div class="p-4 border-b border-[#e6394608] flex justify-between">
+        <span class="text-[8px] opacity-40 uppercase">Active Chats + Groups</span>
+        <button onclick="openCreateGroupModal()" class="text-[#e63946] text-[8px] font-black border border-[#e6394633] px-3 py-1 rounded-full">+ New Squad</button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4 bg-[#050505]" id="main-content-stream"></div>
+    <nav class="h-16 border-t border-[#e6394611] flex items-center justify-around bg-black shrink-0">
+        <button onclick="switchTab('direct')" class="text-[#e63946] p-2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></button>
+        <button onclick="openPostModal()" class="w-12 h-12 bg-[#e63946] text-black clip-path-cyber -mt-10 flex items-center justify-center shadow-[0_0_20px_rgba(230,57,70,0.4)] active:scale-90"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+        <button onclick="switchTab('vocal')" class="text-[#e63946] p-2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></button>
+    </nav>
+</div>
+
+<!-- CHAT ROOM -->
+<div id="view-chat-room" class="view-panel max-w-md mx-auto border-x border-[#e6394611]">
+    <header class="h-16 border-b border-[#e6394611] flex items-center px-4 gap-4 bg-black">
+        <button onclick="goBackFromChat()" class="text-[#e63946] p-2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+        <div id="active-chat-avatar" class="w-8 h-8 clip-path-cyber bg-zinc-800"></div>
+        <div id="active-chat-name" class="text-[10px] font-black uppercase text-[#e63946] flex-1">...</div>
+        <div id="group-info-btn" class="hidden text-[#e63946] text-[10px] cursor-pointer" onclick="showGroupInfo()">ⓘ</div>
+        <div class="ml-auto w-2 h-2 bg-red-500 rounded-full live-pulse"></div>
+    </header>
+    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-[#080808]"></div>
+    <div id="chat-attachment-status" class="hidden px-4 py-2 bg-zinc-900 border-t border-[#e6394611] flex justify-between">
+        <span id="chat-filename" class="text-[8px] text-[#e63946] italic"></span>
+        <button onclick="clearChatAttachment()" class="text-red-500 text-[8px]">DISCARD</button>
+    </div>
+    <div class="p-4 bg-black border-t border-[#e6394611] flex gap-2">
+        <button onclick="document.getElementById('chat-file-input').click()" class="text-[#e63946] p-2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+        <input id="chat-file-input" type="file" class="hidden" onchange="handleChatFileSelect(event)">
+        <input id="chat-input" onkeydown="if(event.key==='Enter') sendChatMessage()" type="text" placeholder="TYPE_MESSAGE..." class="flex-1 bg-transparent text-[11px] text-[#e63946] border-b border-[#e6394615] outline-none py-2">
+        <button onclick="sendChatMessage()" class="text-[#e63946] p-2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
+    </div>
+</div>
+
+<!-- MODALS -->
+<div id="modal-create-group" class="fixed inset-0 z-[2000] hidden items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+    <div class="bg-black border border-[#e63946] p-6 clip-path-cyber w-full max-w-sm">
+        <h3 class="text-[#e63946] text-sm font-black mb-4">CREATE RED SQUAD</h3>
+        <input id="group-name" placeholder="GROUP NAME" class="w-full bg-zinc-900 border-b border-[#e6394622] p-3 text-[10px] text-[#e63946] mb-4 outline-none">
+        <div id="group-members-list" class="max-h-32 overflow-auto space-y-2 bg-zinc-900/30 p-2 rounded mb-4"></div>
+        <div class="flex gap-3"><button onclick="closeCreateGroupModal()" class="flex-1 border border-[#e6394622] py-2 text-[10px]">Cancel</button><button onclick="createGroup()" class="flex-1 bg-[#e63946] text-black py-2 text-[10px] font-black">Create</button></div>
+    </div>
+</div>
+<div id="modal-group-info" class="fixed inset-0 z-[2000] hidden items-center justify-center p-4 bg-black/90 backdrop-blur-sm"><div class="bg-black border border-[#e63946] p-6 clip-path-cyber w-full max-w-sm"><h3 id="group-info-name" class="text-[#e63946] text-sm font-black mb-4"></h3><div id="group-info-members" class="space-y-2 mb-4"></div><button onclick="exitGroup()" class="w-full bg-red-900/30 border border-red-500/50 text-red-500 py-2 text-[10px] font-black mb-3">EXIT GROUP</button><button onclick="closeGroupInfo()" class="w-full border border-[#e6394622] py-2 text-[10px]">Close</button></div></div>
+<div id="modal-vocal-post" class="fixed inset-0 z-[2000] hidden items-center justify-center p-4 bg-black/90 backdrop-blur-sm"><div class="bg-black border border-[#e63946] p-6 clip-path-cyber w-full max-w-sm"><div class="flex gap-3 mb-4"><img id="post-user-avatar" class="w-8 h-8 clip-path-cyber"><span id="post-user-handle" class="text-[10px] font-black text-[#e63946]">@OPERATOR</span></div><input id="vocal-title" placeholder="SUBJECT" class="w-full bg-zinc-900/50 border-b border-[#e6394622] p-3 text-[10px] text-[#e63946] mb-4"><textarea id="vocal-desc" placeholder="TRANSMISSION..." class="w-full bg-transparent p-3 text-[10px] text-[#e63946] mb-4 h-24 outline-none"></textarea><div id="post-preview-container" class="hidden mb-4 relative"><div id="post-preview-media"></div><button onclick="clearPostAttachment()" class="absolute top-2 right-2 bg-black/80 p-1 rounded">✕</button></div><div class="flex justify-between mb-4"><button onclick="document.getElementById('post-file-input').click()" class="text-[#e63946] text-[8px]">UPLOAD</button><input id="post-file-input" type="file" class="hidden" onchange="handlePostFileSelect(event)"><span id="post-file-name" class="text-[7px] text-[#e63946] opacity-50"></span></div><div class="flex gap-3"><button onclick="closePostModal()" class="flex-1 border border-[#e6394622] py-3 text-[10px]">CANCEL</button><button onclick="submitNewPost()" class="flex-1 bg-[#e63946] text-black py-3 text-[10px] font-black">POST</button></div></div></div>
+<div id="comment-drawer" class="comment-drawer max-w-md mx-auto h-[75vh] flex flex-col"><div class="p-4 border-b border-[#e6394611] flex justify-between bg-black"><span class="text-[9px] font-black text-[#e63946]">REDMAGIC_DECODING</span><button onclick="closeComments()" class="text-red-500 text-[10px]">TERMINATE</button></div><div id="comment-list" class="flex-1 overflow-auto p-4 space-y-4 bg-[#050505]"></div><div class="p-4 bg-black border-t border-[#e6394611]"><div class="flex gap-2 bg-zinc-900/50 p-1"><input id="comment-input" type="text" placeholder="REPLY..." class="flex-1 bg-transparent text-[10px] text-[#e63946] outline-none py-2 px-3"><button onclick="submitComment()" class="text-[#e63946] px-3">➤</button></div></div></div>
+<div id="view-search" class="view-panel max-w-md mx-auto border-x border-[#e6394611]"><header class="h-16 border-b flex items-center px-4 gap-4 bg-black"><button onclick="showView('view-main')" class="text-[#e63946] p-2">←</button><input id="search-input" oninput="performSearch(this.value)" placeholder="SEARCH USER..." class="flex-1 bg-transparent text-[11px] outline-none text-[#e63946]"></header><div id="search-results" class="flex-1 overflow-auto p-4 space-y-3 bg-[#080808]"></div></div>
+<div id="view-profile" class="view-panel max-w-md mx-auto border-x border-[#e6394611] p-8"><div class="flex justify-between mb-12"><button onclick="showView('view-main')" class="text-[#e63946] text-[10px] bg-[#e6394611] px-4 py-2 clip-path-cyber">RETURN</button><span class="text-[8px] opacity-30">Profile</span></div><div class="flex flex-col items-center"><div id="profile-img-container" onclick="if(!document.getElementById('profile-upload').disabled) document.getElementById('profile-upload').click()" class="relative w-28 h-28 clip-path-cyber border-2 border-[#e63946] bg-black overflow-hidden mb-8 cursor-pointer"><img id="profile-img" class="w-full h-full object-cover"><div id="profile-upload-overlay" class="absolute inset-0 bg-black/40 hidden items-center justify-center"><span class="text-[8px] text-white">UPDATE</span></div><input id="profile-upload" type="file" accept="image/*" class="hidden" onchange="handleProfileUpdate(event)"></div><div class="w-full space-y-6"><div class="p-4 bg-zinc-900 border border-[#e6394611] clip-path-cyber"><label class="text-[7px] text-[#e63946] opacity-40">ID</label><input id="profile-handle" disabled class="bg-transparent w-full text-xs font-black text-[#e63946]"></div><div class="grid grid-cols-2 gap-4"><div class="bg-zinc-900/50 p-4 rounded"><div class="text-[7px] opacity-40">Likes</div><div id="stat-likes" class="text-xl font-black text-[#e63946]">0</div></div><div class="bg-zinc-900/50 p-4 rounded"><div class="text-[7px] opacity-40">Posts</div><div id="stat-posts" class="text-xl font-black text-[#e63946]">0</div></div></div><button id="light-mode-toggle" onclick="toggleLightMode()" class="w-full bg-[#e63946] text-black py-3 text-[9px] font-black uppercase hidden">SWITCH TO LIGHT MODE</button><button id="profile-message-btn" onclick="messageProfileUser()" class="w-full bg-[#e63946] text-black py-3 text-[9px] font-black uppercase hidden">MESSAGE</button><button id="btn-signout" onclick="signOut()" class="w-full border border-red-900/50 bg-red-900/10 text-red-500 py-4 text-[9px] font-black">ELIMINATE</button></div></div></div>
+<div id="modal-image-actions" class="fixed inset-0 z-[2500] hidden items-center justify-center p-4 bg-black/80"><div class="bg-black border border-[#e63946] p-6 text-center w-64"><h3 class="text-[#e63946] text-xs font-black mb-4">IMAGE_OPTIONS</h3><button id="img-download-btn" class="w-full bg-[#e63946] text-black py-2 text-[9px] font-black mb-3">DOWNLOAD</button><button id="img-delete-btn" class="w-full border border-red-500/50 text-red-500 py-2 text-[9px] font-black">DELETE_MESSAGE</button><button onclick="closeImageModal()" class="w-full mt-4 text-[8px] opacity-50">CANCEL</button></div></div>
+
+<script>
+const SUPABASE_URL = 'https://njosazetimirdmaovpdo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qb3NhemV0aW1pcmRtYW92cGRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMjMzMDgsImV4cCI6MjA5Njc5OTMwOH0.yLedB7a4qmbmBC6rdnJbaqBDNNQe-KhQxwlb1GdLyHU';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentUser = null;
+let currentUserProfile = null;
+let currentUserHandle = null;
+let activeTab = 'direct';
+let activeChatId = null, activeChatType = null;
+let openPostId = null;
+let pendingPostFile = null, pendingChatFile = null;
+let currentProfileView = null;
+
+function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+function formatTime(ts) { return new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+
+async function uploadFile(file, bucket) {
+    const ext = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substr(2,6)}.${ext}`;
+    const { error } = await supabase.storage.from(bucket).upload(fileName, file);
+    if (error) throw error;
+    const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fileName);
+    return publicUrl;
+}
+
+function renderMediaPreview(url, type, name, isChat, msgId) {
+    if (!url) return '';
+    if (type?.startsWith('image/')) {
+        let cls = "w-full h-auto max-h-64 object-contain rounded border border-zinc-800" + (isChat ? " chat-img-clickable" : "");
+        let onclick = isChat && msgId ? ` onclick="openImageModal('${url}', '${msgId}')"` : '';
+        return `<img src="${url}" class="${cls}"${onclick}>`;
+    }
+    if (type?.startsWith('video/')) return `<video src="${url}" controls class="w-full max-h-64"></video>`;
+    if (type?.startsWith('audio/')) return `<audio src="${url}" controls class="w-full"></audio>`;
+    return `<a href="${url}" download="${escapeHtml(name)}" class="text-[#e63946] underline text-[9px]">DOWNLOAD ${escapeHtml(name)}</a>`;
+}
+
+function applyTheme(theme) {
+    if (theme === 'light') document.body.classList.add('light-mode');
+    else document.body.classList.remove('light-mode');
+    localStorage.setItem('theme', theme);
+    const btn = document.getElementById('light-mode-toggle');
+    if (btn) btn.innerText = theme === 'light' ? "SWITCH TO DARK MODE" : "SWITCH TO LIGHT MODE";
+}
+window.toggleLightMode = () => applyTheme(document.body.classList.contains('light-mode') ? 'dark' : 'light');
+function loadTheme() { applyTheme(localStorage.getItem('theme') || 'dark'); }
+
+let currentAuthMode = 'login';
+window.toggleAuthMode = (mode) => {
+    currentAuthMode = mode;
+    document.getElementById('signup-fields').classList.toggle('hidden', mode === 'login');
+    document.getElementById('btn-mode-login').classList.toggle('opacity-30', mode !== 'login');
+    document.getElementById('btn-mode-signup').classList.toggle('opacity-30', mode !== 'signup');
+};
+
+function showAuthError(msg) { 
+    const e = document.getElementById('auth-error'); 
+    e.innerText = msg; 
+    e.classList.remove('hidden'); 
+    setTimeout(() => e.classList.add('hidden'), 4000); 
+}
+
+window.handleAuthSubmit = async () => {
+    const btn = document.getElementById('auth-submit-btn');
+    btn.disabled = true;
+    btn.innerText = 'PROCESSING...';
+    
+    try {
+        if (currentAuthMode === 'signup') {
+            const handle = document.getElementById('reg-handle').value.trim().toLowerCase();
+            const regEmail = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('auth-pass').value.trim();
+            
+            if (!handle || !regEmail || !password) { 
+                showAuthError("All fields required"); 
+                btn.disabled = false;
+                btn.innerText = 'ENTER COMBAT ZONE';
+                return; 
+            }
+            
+            // Check handle unique
+            const { data: existing } = await supabase.from('profiles').select('handle').eq('handle', handle);
+            if (existing?.length) { 
+                showAuthError("Handle taken"); 
+                btn.disabled = false;
+                btn.innerText = 'ENTER COMBAT ZONE';
+                return; 
+            }
+            
+            // Signup
+            const { data, error } = await supabase.auth.signUp({
+                email: regEmail,
+                password: password,
+                options: { 
+                    data: { 
+                        handle, 
+                        avatar_url: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${handle}` 
+                    } 
+                }
+            });
+            
+            if (error) { 
+                showAuthError("Signup failed: " + error.message); 
+                btn.disabled = false;
+                btn.innerText = 'ENTER COMBAT ZONE';
+                return; 
+            }
+            
+            // Create profile manually (backup)
+            await supabase.from('profiles').upsert({ 
+                id: data.user.id,
+                handle: handle,
+                avatar_url: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${handle}`
+            });
+            
+            // Auto-login
+            const { error: signInErr } = await supabase.auth.signInWithPassword({ email: regEmail, password });
+            if (signInErr) { 
+                showAuthError("Login failed: " + signInErr.message); 
+                btn.disabled = false;
+                btn.innerText = 'ENTER COMBAT ZONE';
+                return; 
+            }
+        } else {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-pass').value.trim();
+            
+            if (!email || !password) { 
+                showAuthError("Email and password required"); 
+                btn.disabled = false;
+                btn.innerText = 'ENTER COMBAT ZONE';
+                return; 
+            }
+            
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) { 
+                showAuthError("Login failed: " + error.message); 
+                btn.disabled = false;
+                btn.innerText = 'ENTER COMBAT ZONE';
+                return; 
+            }
+        }
+    } catch (err) {
+        showAuthError("Error: " + err.message);
+        btn.disabled = false;
+        btn.innerText = 'ENTER COMBAT ZONE';
+        return;
+    }
+    
+    btn.disabled = false;
+    btn.innerText = 'ENTER COMBAT ZONE';
+};
+
+async function loadUserSession(user) {
+    if (!user) return;
+    currentUser = user;
+    
+    try {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (!profile) { 
+            console.error("No profile found, creating one");
+            // Create profile if missing
+            await supabase.from('profiles').insert({ 
+                id: user.id,
+                handle: user.email.split('@')[0],
+                avatar_url: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.id}`
+            });
+            return loadUserSession(user);
+        }
+        
+        currentUserProfile = profile;
+        currentUserHandle = profile.handle;
+        
+        document.getElementById('user-avatar-mini').src = profile.avatar_url;
+        document.getElementById('profile-img').src = profile.avatar_url;
+        document.getElementById('profile-handle').value = "@" + profile.handle.toUpperCase();
+        document.getElementById('post-user-avatar').src = profile.avatar_url;
+        document.getElementById('post-user-handle').innerText = "@" + profile.handle.toUpperCase();
+        
+        showView('view-main');
+        switchTab('direct');
+    } catch (err) {
+        console.error("Error loading session:", err);
+        showAuthError("Session error: " + err.message);
+    }
+}
+
+window.signOut = async () => { await supabase.auth.signOut(); location.reload(); };
+window.showView = (id) => {
+    document.querySelectorAll('.view-panel').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if (id === 'view-chat-room' && activeChatId) renderChatMessages();
+    if (id !== 'view-profile') currentProfileView = null;
+};
+window.goBackFromChat = () => { activeChatId = null; activeChatType = null; clearChatAttachment(); showView('view-main'); refreshUI(); };
+window.switchTab = (t) => { activeTab = t; document.getElementById('tab-direct').classList.toggle('opacity-30', t !== 'direct'); document.getElementById('tab-vocal').classList.toggle('opacity-30', t !== 'vocal'); refreshUI(); };
+async function refreshUI() { if (activeTab === 'vocal') await renderVocalStream(); else await renderDirectLinks(); updateProfileStats(); }
+
+async function renderVocalStream() {
+    const container = document.getElementById('main-content-stream');
+    container.innerHTML = '<div class="text-center py-12 text-[9px] opacity-40">Loading...</div>';
+    const { data: posts, error } = await supabase.from('posts').select('*, profiles(handle, avatar_url)').order('created_at', { ascending: false });
+    if (error || !posts?.length) { container.innerHTML = '<div class="text-center text-[9px] opacity-40 py-12">No transmissions.</div>'; return; }
+    const { data: likes } = await supabase.from('post_likes').select('post_id').eq('user_id', currentUser.id);
+    const likedSet = new Set(likes?.map(l => l.post_id) || []);
+    const { data: allComments } = await supabase.from('comments').select('post_id');
+    const commentCounts = {};
+    (allComments || []).forEach(c => commentCounts[c.post_id] = (commentCounts[c.post_id] || 0) + 1);
+    container.innerHTML = '';
+    for (const p of posts) {
+        const isLiked = likedSet.has(p.id);
+        const avatar = p.profiles?.avatar_url || '';
+        const handle = p.profiles?.handle || 'unknown';
+        const div = document.createElement('div'); div.className = "feed-post";
+        div.innerHTML = `
+            <div class="flex items-center mb-3"><div onclick="viewProfile('${handle}')" class="flex items-center gap-3 cursor-pointer"><img src="${avatar}" class="w-8 h-8 clip-path-cyber border border-zinc-800"><span class="text-[9px] font-black text-[#e63946]">@${handle.toUpperCase()}</span></div><span class="text-[7px] opacity-20 ml-auto">${formatTime(p.created_at)}</span></div>
+            <h4 class="text-[10px] font-black uppercase text-[#e63946] mb-1">${escapeHtml(p.title)}</h4>
+            <p class="text-[10px] text-zinc-400 mb-2">${escapeHtml(p.description)}</p>
+            ${p.attachment_url ? `<div class="mt-2">${renderMediaPreview(p.attachment_url, p.attachment_type, p.attachment_name, false)}</div>` : ''}
+            <div class="flex gap-8 mt-4"><button onclick="toggleLike('${p.id}')" class="flex items-center gap-2 text-[8px] font-bold ${isLiked ? 'text-red-500' : 'text-zinc-600'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="${isLiked ? 'currentColor' : 'none'}" stroke="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>${p.likes_count || 0} SIGNAL</span></button><button onclick="openComments('${p.id}')" class="flex items-center gap-2 text-[8px] font-bold text-zinc-600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> DECODE (${commentCounts[p.id] || 0})</button></div>`;
+        container.appendChild(div);
+    }
+}
+
+window.toggleLike = async (postId) => {
+    const { data: existing } = await supabase.from('post_likes').select().eq('post_id', postId).eq('user_id', currentUser.id);
+    if (existing?.length) {
+        await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', currentUser.id);
+        await supabase.rpc('decrement_post_likes', { post_id: postId });
+    } else {
+        await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUser.id });
+        await supabase.rpc('increment_post_likes', { post_id: postId });
+    }
+    await renderVocalStream();
+    updateProfileStats();
+};
+
+window.openPostModal = () => document.getElementById('modal-vocal-post').classList.remove('hidden');
+window.closePostModal = () => { document.getElementById('modal-vocal-post').classList.add('hidden'); document.getElementById('vocal-title').value = ''; document.getElementById('vocal-desc').value = ''; clearPostAttachment(); };
+window.clearPostAttachment = () => { pendingPostFile = null; document.getElementById('post-preview-container').classList.add('hidden'); document.getElementById('post-file-name').innerText = ''; document.getElementById('post-file-input').value = ''; document.getElementById('post-preview-media').innerHTML = ''; };
+window.handlePostFileSelect = (e) => { pendingPostFile = e.target.files[0]; if (pendingPostFile) { const url = URL.createObjectURL(pendingPostFile); document.getElementById('post-preview-media').innerHTML = renderMediaPreview(url, pendingPostFile.type, pendingPostFile.name, false); document.getElementById('post-preview-container').classList.remove('hidden'); document.getElementById('post-file-name').innerText = pendingPostFile.name.toUpperCase(); } };
+window.submitNewPost = async () => {
+    const title = document.getElementById('vocal-title').value.trim();
+    const desc = document.getElementById('vocal-desc').value.trim();
+    if (!title && !desc && !pendingPostFile) { alert("Add content"); return; }
+    let attachmentUrl = null, attachmentType = null, attachmentName = null;
+    if (pendingPostFile) {
+        attachmentUrl = await uploadFile(pendingPostFile, 'attachments');
+        attachmentType = pendingPostFile.type;
+        attachmentName = pendingPostFile.name;
+    }
+    const postId = Date.now() + '-' + Math.random().toString(36).substr(2,8);
+    await supabase.from('posts').insert({ id: postId, user_id: currentUser.id, title: title || "UNTITLED", description: desc, attachment_url: attachmentUrl, attachment_type: attachmentType, attachment_name: attachmentName, likes_count: 0 });
+    closePostModal();
+    if (activeTab === 'vocal') await renderVocalStream();
+    updateProfileStats();
+};
+
+window.openComments = async (postId) => { openPostId = postId; document.getElementById('comment-drawer').classList.add('active'); await renderCommentList(postId); };
+async function renderCommentList(postId) {
+    const { data: comments } = await supabase.from('comments').select('*, profiles(handle, avatar_url)').eq('post_id', postId).order('created_at');
+    const listDiv = document.getElementById('comment-list');
+    if (!comments?.length) { listDiv.innerHTML = '<div class="text-center py-8 text-[9px] opacity-20">No comments</div>'; return; }
+    listDiv.innerHTML = comments.map(c => `<div class="flex gap-3 items-start border-l border-zinc-800 pl-3"><img onclick="viewProfile('${c.profiles.handle}')" src="${c.profiles.avatar_url}" class="w-6 h-6 clip-path-cyber cursor-pointer"><div><div><span onclick="viewProfile('${c.profiles.handle}')" class="text-[8px] font-black text-[#e63946] cursor-pointer">@${c.profiles.handle.toUpperCase()}</span></div><p class="text-[9px] text-zinc-300 mt-1">${escapeHtml(c.content)}</p></div></div>`).join('');
+}
+window.submitComment = async () => { const txt = document.getElementById('comment-input').value.trim(); if (!txt || !openPostId) return; await supabase.from('comments').insert({ post_id: openPostId, user_id: currentUser.id, content: txt }); document.getElementById('comment-input').value = ''; await renderCommentList(openPostId); if (activeTab === 'vocal') await renderVocalStream(); };
+window.closeComments = () => document.getElementById('comment-drawer').classList.remove('active');
+
+window.handleChatFileSelect = (e) => { pendingChatFile = e.target.files[0]; if(pendingChatFile) { document.getElementById('chat-filename').innerText = "READY: "+pendingChatFile.name; document.getElementById('chat-attachment-status').classList.remove('hidden'); } };
+window.clearChatAttachment = () => { pendingChatFile = null; document.getElementById('chat-file-input').value = ''; document.getElementById('chat-attachment-status').classList.add('hidden'); };
+window.sendChatMessage = async () => {
+    const text = document.getElementById('chat-input').value.trim();
+    if (!text && !pendingChatFile) return;
+    let attachmentUrl = null, attachmentType = null, attachmentName = null;
+    if (pendingChatFile) {
+        attachmentUrl = await uploadFile(pendingChatFile, 'attachments');
+        attachmentType = pendingChatFile.type;
+        attachmentName = pendingChatFile.name;
+        clearChatAttachment();
+    }
+    const convId = activeChatType === 'direct' ? [currentUser.id, activeChatId].sort().join('_') : activeChatId;
+    await supabase.from('messages').insert({ conversation_id: convId, sender_id: currentUser.id, text: text || null, attachment_url: attachmentUrl, attachment_type: attachmentType, attachment_name: attachmentName });
+    document.getElementById('chat-input').value = '';
+    await renderChatMessages();
+};
+
+async function renderChatMessages() {
+    if (!activeChatId) return;
+    const convId = activeChatType === 'direct' ? [currentUser.id, activeChatId].sort().join('_') : activeChatId;
+    const { data: msgs } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at');
+    const container = document.getElementById('chat-messages');
+    if (!msgs?.length) { container.innerHTML = '<div class="text-center py-12 text-[9px] opacity-40">No messages</div>'; return; }
+    container.innerHTML = '';
+    for (const m of msgs) {
+        const isMe = m.sender_id === currentUser.id;
+        let senderTag = '';
+        if (activeChatType === 'group' && !isMe) {
+            const { data: p } = await supabase.from('profiles').select('handle').eq('id', m.sender_id).single();
+            if (p) senderTag = `<div onclick="viewProfile('${p.handle}')" class="text-[7px] text-[#e63946] mb-1 cursor-pointer">@${p.handle.toUpperCase()}</div>`;
+        }
+        const attachHtml = m.attachment_url ? `<div class="mt-2">${renderMediaPreview(m.attachment_url, m.attachment_type, m.attachment_name, true, m.id)}</div>` : '';
+        container.innerHTML += `<div class="flex ${isMe ? 'justify-end' : 'justify-start'}"><div class="max-w-[85%]">${senderTag}<div class="p-3 text-[10px] font-medium ${isMe ? 'bg-[#e63946] text-black clip-path-msg-r' : 'bg-zinc-900 text-zinc-200 border border-zinc-800 clip-path-msg-l'}">${m.text ? `<div>${escapeHtml(m.text)}</div>` : ''}${attachHtml}<div class="text-[6px] mt-1 opacity-50 text-right">${formatTime(m.created_at)}</div></div></div></div>`;
+    }
+    container.scrollTop = container.scrollHeight;
+}
+
+window.openChat = async (chatId, type) => {
+    activeChatId = chatId; activeChatType = type; clearChatAttachment();
+    const headerName = document.getElementById('active-chat-name');
+    const headerAvatar = document.getElementById('active-chat-avatar');
+    const groupBtn = document.getElementById('group-info-btn');
+    if (type === 'direct') {
+        const { data: prof } = await supabase.from('profiles').select('*').eq('handle', chatId).single();
+        if (prof) {
+            headerName.innerHTML = `<span onclick="viewProfile('${chatId}')" class="cursor-pointer">@${chatId.toUpperCase()}</span>`;
+            headerAvatar.innerHTML = `<img src="${prof.avatar_url}" class="w-full h-full object-cover cursor-pointer" onclick="viewProfile('${chatId}')">`;
+            groupBtn.classList.add('hidden');
+            await supabase.from('connections').upsert({ user_id: currentUser.id, friend_id: prof.id });
+        }
+    } else {
+        const { data: grp } = await supabase.from('groups').select('*').eq('id', chatId).single();
+        if (grp) { headerName.innerText = grp.name.toUpperCase(); headerAvatar.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-[#e63946] to-red-700 flex items-center justify-center text-black font-bold">#</div>`; groupBtn.classList.remove('hidden'); }
+    }
+    showView('view-chat-room');
+    await renderChatMessages();
+};
+
+window.deleteChatMessage = async (msgId) => { await supabase.from('messages').delete().eq('id', msgId); await renderChatMessages(); };
+
+async function renderDirectLinks() {
+    const container = document.getElementById('main-content-stream');
+    container.innerHTML = '<div class="text-[7px] font-black text-[#e63946] mb-4 opacity-30 uppercase border-b pb-2">Active_Cognitive_Links</div>';
+    const { data: conns } = await supabase.from('connections').select('friend_id, profiles!friend_id(handle, avatar_url)').eq('user_id', currentUser.id);
+    for (const c of conns || []) {
+        const f = c.profiles;
+        if (f) {
+            const div = document.createElement('div'); div.className = "p-3 bg-zinc-900/30 border border-zinc-800/50 clip-path-cyber flex items-center gap-4 cursor-pointer mb-3";
+            div.innerHTML = `<img onclick="event.stopPropagation(); viewProfile('${f.handle}')" src="${f.avatar_url}" class="w-8 h-8 clip-path-cyber"><span onclick="openChat('${f.handle}', 'direct')" class="text-[10px] font-bold text-[#e63946] flex-1">@${f.handle.toUpperCase()}</span><span class="text-[7px] opacity-40">DIRECT</span>`;
+            container.appendChild(div);
+        }
+    }
+    const { data: memberships } = await supabase.from('group_members').select('group_id, groups(id, name)').eq('user_id', currentUser.id);
+    if (memberships?.length) {
+        container.innerHTML += '<div class="text-[7px] font-black text-[#e63946] mt-6 mb-4 opacity-30 uppercase border-b pb-2">Neural_Collectives</div>';
+        for (const gm of memberships) {
+            const g = gm.groups;
+            if (g) {
+                const div = document.createElement('div'); div.className = "p-3 bg-zinc-900/30 border border-zinc-800/50 clip-path-cyber flex items-center gap-4 cursor-pointer mb-3";
+                div.innerHTML = `<div class="w-8 h-8 clip-path-cyber bg-gradient-to-br from-[#e63946] to-red-700 flex items-center justify-center text-black font-bold">#</div><span class="text-[10px] font-bold text-[#e63946]">${g.name}</span><span class="ml-auto text-[7px] opacity-40">GROUP</span>`;
+                div.onclick = () => openChat(g.id, 'group');
+                container.appendChild(div);
+            }
+        }
+    }
+    if ((!conns || !conns.length) && (!memberships || !memberships.length)) container.innerHTML += '<div class="py-12 text-center text-[9px] opacity-20">No links. Search or create a squad.</div>';
+}
+
+async function openCreateGroupModal() {
+    const membersDiv = document.getElementById('group-members-list');
+    membersDiv.innerHTML = '';
+    const { data: profiles } = await supabase.from('profiles').select('handle, id').neq('id', currentUser.id);
+    for (const p of profiles || []) {
+        const div = document.createElement('div'); div.className = "flex items-center gap-2 text-[8px]";
+        div.innerHTML = `<input type="checkbox" value="${p.id}" id="member_${p.id}" class="accent-[#e63946]"><label for="member_${p.id}" class="text-[#e63946]">@${p.handle.toUpperCase()}</label>`;
+        membersDiv.appendChild(div);
+    }
+    document.getElementById('modal-create-group').classList.remove('hidden');
+}
+
+function closeCreateGroupModal() { document.getElementById('modal-create-group').classList.add('hidden'); document.getElementById('group-name').value = ''; }
+window.createGroup = async () => {
+    const name = document.getElementById('group-name').value.trim();
+    if (!name) return;
+    const checkboxes = document.querySelectorAll('#group-members-list input:checked');
+    const memberIds = [currentUser.id, ...Array.from(checkboxes).map(cb => cb.value)];
+    const groupId = 'group_' + Date.now();
+    await supabase.from('groups').insert({ id: groupId, name: name, creator_id: currentUser.id });
+    for (const uid of memberIds) await supabase.from('group_members').insert({ group_id: groupId, user_id: uid });
+    closeCreateGroupModal();
+    await refreshUI();
+};
+
+async function showGroupInfo() {
+    if (activeChatType !== 'group') return;
+    const { data: grp } = await supabase.from('groups').select('*').eq('id', activeChatId).single();
+    if (!grp) return;
+    const { data: members } = await supabase.from('group_members').select('profiles(handle)').eq('group_id', activeChatId);
+    document.getElementById('group-info-name').innerText = grp.name;
+    const membersDiv = document.getElementById('group-info-members');
+    membersDiv.innerHTML = '<div class="text-[8px] text-[#e63946] mb-1">MEMBERS:</div>';
+    for (const m of members || []) if (m.profiles) membersDiv.innerHTML += `<div onclick="viewProfile('${m.profiles.handle}'); closeGroupInfo();" class="text-[9px] cursor-pointer hover:underline">@${m.profiles.handle.toUpperCase()}</div>`;
+    document.getElementById('modal-group-info').classList.remove('hidden');
+}
+
+function closeGroupInfo() { document.getElementById('modal-group-info').classList.add('hidden'); }
+window.exitGroup = async () => { if (activeChatType !== 'group') return; await supabase.from('group_members').delete().eq('group_id', activeChatId).eq('user_id', currentUser.id); closeGroupInfo(); activeChatId = null; activeChatType = null; showView('view-main'); await refreshUI(); };
+
+async function updateProfileStats() {
+    const target = currentProfileView || currentUserHandle;
+    if (!target) return;
+    const { data: prof } = await supabase.from('profiles').select('id').eq('handle', target).single();
+    if (!prof) return;
+    const { data: posts } = await supabase.from('posts').select('likes_count').eq('user_id', prof.id);
+    const totalLikes = posts?.reduce((s,p)=>s+(p.likes_count||0),0) || 0;
+    document.getElementById('stat-likes').innerText = totalLikes;
+    document.getElementById('stat-posts').innerText = posts?.length || 0;
+}
+
+window.viewProfile = async (handle) => {
+    currentProfileView = handle;
+    const { data: prof } = await supabase.from('profiles').select('*').eq('handle', handle).single();
+    if (!prof) return;
+    const isMe = prof.id === currentUser.id;
+    document.getElementById('profile-img').src = prof.avatar_url;
+    document.getElementById('profile-handle').value = "@" + prof.handle.toUpperCase();
+    document.getElementById('profile-upload').disabled = !isMe;
+    document.getElementById('profile-upload-overlay').classList.toggle('hidden', !isMe);
+    document.getElementById('profile-img-container').style.cursor = isMe ? 'pointer' : 'default';
+    document.getElementById('btn-signout').classList.toggle('hidden', !isMe);
+    const msgBtn = document.getElementById('profile-message-btn');
+    const themeBtn = document.getElementById('light-mode-toggle');
+    if (!isMe) { msgBtn.classList.remove('hidden'); themeBtn.classList.add('hidden'); }
+    else { msgBtn.classList.add('hidden'); themeBtn.classList.remove('hidden'); themeBtn.innerText = document.body.classList.contains('light-mode') ? "SWITCH TO DARK MODE" : "SWITCH TO LIGHT MODE"; }
+    await updateProfileStats();
+    showView('view-profile');
+};
+
+window.messageProfileUser = () => { if (currentProfileView && currentProfileView !== currentUserHandle) openChat(currentProfileView, 'direct'); };
+window.handleProfileUpdate = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = await uploadFile(file, 'avatars');
+    await supabase.from('profiles').update({ avatar_url: url }).eq('id', currentUser.id);
+    currentUserProfile.avatar_url = url;
+    document.getElementById('profile-img').src = url;
+    document.getElementById('user-avatar-mini').src = url;
+    document.getElementById('post-user-avatar').src = url;
+    await refreshUI();
+};
+
+window.performSearch = async (q) => {
+    const resDiv = document.getElementById('search-results');
+    if (!q) { resDiv.innerHTML = ''; return; }
+    const { data: users } = await supabase.from('profiles').select('handle, avatar_url').ilike('handle', `%${q}%`).neq('id', currentUser.id);
+    resDiv.innerHTML = '';
+    for (const u of users || []) {
+        const div = document.createElement('div'); div.className = "flex items-center gap-3 p-3 bg-zinc-900/50 border border-zinc-800 cursor-pointer";
+        div.innerHTML = `<img onclick="event.stopPropagation(); viewProfile('${u.handle}')" src="${u.avatar_url}" class="w-8 h-8 clip-path-cyber"><span onclick="viewProfile('${u.handle}')" class="text-[10px] font-black text-[#e63946]">@${u.handle.toUpperCase()}</span><span class="ml-auto text-[7px] text-[#e63946] italic" onclick="event.stopPropagation(); openChat('${u.handle}', 'direct')">CONNECT</span>`;
+        resDiv.appendChild(div);
+    }
+    if (!users?.length) resDiv.innerHTML = '<div class="text-center text-[9px] opacity-40 py-12">No users.</div>';
+};
+
+window.openImageModal = (src, msgId) => {
+    const modal = document.getElementById('modal-image-actions');
+    document.getElementById('img-download-btn').onclick = () => { window.open(src, '_blank'); closeImageModal(); };
+    document.getElementById('img-delete-btn').onclick = () => { deleteChatMessage(msgId); closeImageModal(); };
+    modal.classList.remove('hidden');
+};
+
+window.closeImageModal = () => document.getElementById('modal-image-actions').classList.add('hidden');
+
+async function checkSession() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) await loadUserSession(session.user);
+    else showView('view-auth');
+}
+
+loadTheme();
+checkSession();
+</script>
+</body>
+</html>
