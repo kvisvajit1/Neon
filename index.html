@@ -44,6 +44,7 @@
         <div id="signup-fields" class="hidden space-y-4 mb-4">
             <input type="text" id="reg-handle" placeholder="HANDLE (unique)" class="w-full bg-zinc-900 border-b border-[#e6394622] py-3 px-2 text-[10px] outline-none text-[#e63946]">
             <input type="email" id="reg-email" placeholder="EMAIL" class="w-full bg-zinc-900 border-b border-[#e6394622] py-3 px-2 text-[10px] outline-none text-[#e63946]">
+            <input type="password" id="signup-pass" placeholder="PASSWORD" class="w-full bg-zinc-900 border-b border-[#e6394622] py-3 px-2 text-[10px] outline-none text-[#e63946]">
         </div>
         <div class="space-y-4">
             <input type="email" id="auth-email" placeholder="EMAIL" class="w-full bg-zinc-900 border-b border-[#e6394622] py-3 px-2 text-[10px] outline-none text-[#e63946]">
@@ -169,6 +170,7 @@ function loadTheme() { applyTheme(localStorage.getItem('theme') || 'dark'); }
 
 let currentAuthMode = 'login';
 window.toggleAuthMode = (mode) => {
+    console.log('🔄 Auth mode changed to:', mode);
     currentAuthMode = mode;
     document.getElementById('signup-fields').classList.toggle('hidden', mode === 'login');
     document.getElementById('btn-mode-login').classList.toggle('opacity-30', mode !== 'login');
@@ -176,40 +178,47 @@ window.toggleAuthMode = (mode) => {
 };
 
 function showAuthError(msg) { 
+    console.error('❌ Auth Error:', msg);
     const e = document.getElementById('auth-error'); 
     e.innerText = msg; 
     e.classList.remove('hidden'); 
-    setTimeout(() => e.classList.add('hidden'), 4000); 
+    setTimeout(() => e.classList.add('hidden'), 5000); 
 }
 
 window.handleAuthSubmit = async () => {
+    console.log('🚀 Auth submit - Mode:', currentAuthMode);
     const btn = document.getElementById('auth-submit-btn');
     btn.disabled = true;
     btn.innerText = 'PROCESSING...';
     
     try {
         if (currentAuthMode === 'signup') {
+            console.log('📝 SIGNUP MODE ACTIVATED');
             const handle = document.getElementById('reg-handle').value.trim().toLowerCase();
             const regEmail = document.getElementById('reg-email').value.trim();
-            const password = document.getElementById('auth-pass').value.trim();
+            const password = document.getElementById('signup-pass').value.trim();
+            
+            console.log('📋 Form Data:', { handle, regEmail, password: password ? '***' : 'empty' });
             
             if (!handle || !regEmail || !password) { 
-                showAuthError("All fields required"); 
+                showAuthError("❌ ALL FIELDS REQUIRED: handle, email, password"); 
                 btn.disabled = false;
                 btn.innerText = 'ENTER COMBAT ZONE';
                 return; 
             }
             
-            // Check handle unique
+            console.log('🔍 Checking if handle exists:', handle);
             const { data: existing } = await supabase.from('profiles').select('handle').eq('handle', handle);
+            console.log('Handle check result:', existing);
+            
             if (existing?.length) { 
-                showAuthError("Handle taken"); 
+                showAuthError("❌ HANDLE ALREADY TAKEN"); 
                 btn.disabled = false;
                 btn.innerText = 'ENTER COMBAT ZONE';
                 return; 
             }
             
-            // Signup
+            console.log('✅ Handle available, creating account...');
             const { data, error } = await supabase.auth.signUp({
                 email: regEmail,
                 password: password,
@@ -222,48 +231,66 @@ window.handleAuthSubmit = async () => {
             });
             
             if (error) { 
-                showAuthError("Signup failed: " + error.message); 
+                console.error('❌ Signup error:', error);
+                showAuthError("❌ SIGNUP FAILED: " + error.message); 
                 btn.disabled = false;
                 btn.innerText = 'ENTER COMBAT ZONE';
                 return; 
             }
             
-            // Create profile manually (backup)
-            await supabase.from('profiles').upsert({ 
+            console.log('✅ Account created, User ID:', data.user?.id);
+            console.log('📊 Creating profile in database...');
+            
+            const { error: profileError } = await supabase.from('profiles').insert({ 
                 id: data.user.id,
                 handle: handle,
                 avatar_url: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${handle}`
             });
             
-            // Auto-login
+            if (profileError) {
+                console.error('⚠️ Profile creation error:', profileError);
+            } else {
+                console.log('✅ Profile created successfully');
+            }
+            
+            console.log('🔐 Attempting login...');
             const { error: signInErr } = await supabase.auth.signInWithPassword({ email: regEmail, password });
             if (signInErr) { 
-                showAuthError("Login failed: " + signInErr.message); 
+                console.error('❌ Login error:', signInErr);
+                showAuthError("❌ LOGIN FAILED: " + signInErr.message); 
                 btn.disabled = false;
                 btn.innerText = 'ENTER COMBAT ZONE';
                 return; 
             }
+            console.log('✅ Login successful!');
         } else {
+            console.log('🔐 LOGIN MODE ACTIVATED');
             const email = document.getElementById('auth-email').value.trim();
             const password = document.getElementById('auth-pass').value.trim();
             
+            console.log('📋 Login credentials:', { email, password: password ? '***' : 'empty' });
+            
             if (!email || !password) { 
-                showAuthError("Email and password required"); 
+                showAuthError("❌ EMAIL AND PASSWORD REQUIRED"); 
                 btn.disabled = false;
                 btn.innerText = 'ENTER COMBAT ZONE';
                 return; 
             }
             
+            console.log('🔐 Authenticating...');
             const { error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) { 
-                showAuthError("Login failed: " + error.message); 
+                console.error('❌ Login failed:', error);
+                showAuthError("❌ LOGIN FAILED: " + error.message); 
                 btn.disabled = false;
                 btn.innerText = 'ENTER COMBAT ZONE';
                 return; 
             }
+            console.log('✅ Login successful!');
         }
     } catch (err) {
-        showAuthError("Error: " + err.message);
+        console.error('❌ Exception caught:', err);
+        showAuthError("❌ ERROR: " + err.message);
         btn.disabled = false;
         btn.innerText = 'ENTER COMBAT ZONE';
         return;
@@ -276,12 +303,12 @@ window.handleAuthSubmit = async () => {
 async function loadUserSession(user) {
     if (!user) return;
     currentUser = user;
+    console.log('👤 Loading session for:', user.id);
     
     try {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (!profile) { 
-            console.error("No profile found, creating one");
-            // Create profile if missing
+            console.log('⚠️ No profile found, creating one');
             await supabase.from('profiles').insert({ 
                 id: user.id,
                 handle: user.email.split('@')[0],
@@ -292,6 +319,7 @@ async function loadUserSession(user) {
         
         currentUserProfile = profile;
         currentUserHandle = profile.handle;
+        console.log('✅ Profile loaded:', profile.handle);
         
         document.getElementById('user-avatar-mini').src = profile.avatar_url;
         document.getElementById('profile-img').src = profile.avatar_url;
@@ -302,8 +330,8 @@ async function loadUserSession(user) {
         showView('view-main');
         switchTab('direct');
     } catch (err) {
-        console.error("Error loading session:", err);
-        showAuthError("Session error: " + err.message);
+        console.error("❌ Session error:", err);
+        showAuthError("❌ SESSION ERROR: " + err.message);
     }
 }
 
@@ -589,6 +617,7 @@ async function checkSession() {
 }
 
 loadTheme();
+console.log('✅ REDMAGIC App Initialized');
 checkSession();
 </script>
 </body>
