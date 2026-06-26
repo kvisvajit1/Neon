@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VKIX | Keyless Uplink</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+        
+        :root {
+            --cyber-yellow: #fcee0a;
+            --cyber-black: #050505;
+            --hazard: repeating-linear-gradient(45deg, #fcee0a, #fcee0a 10px, #000 10px, #000 20px);
+        }
+
+        body {
+            background-color: var(--cyber-black);
+            color: #fff;
+            font-family: 'JetBrains+Mono', monospace;
+            margin: 0; overflow: hidden; height: 100vh;
+        }
+
+        .view-panel { 
+            display: none; flex-direction: column; height: 100%; width: 100%; 
+            position: absolute; top: 0; left: 0; background: var(--cyber-black);
+            animation: bootUp 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+        .view-panel.active { display: flex; z-index: 10; }
+
+        @keyframes bootUp {
+            0% { opacity: 0; transform: scale(0.98); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .clip-path-cyber { clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+        .cyber-glow { box-shadow: 0 0 20px rgba(252, 238, 10, 0.1); }
+        
+        .scanline {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px; pointer-events: none; z-index: 9999; opacity: 0.2;
+        }
+
+        #toast-container {
+            position: fixed; top: 1rem; left: 50%; transform: translateX(-50%);
+            z-index: 10000; display: flex; flex-direction: column; gap: 0.5rem;
+        }
+        .toast {
+            background: var(--cyber-yellow); color: #000;
+            padding: 0.6rem 1.2rem; font-size: 10px; font-weight: 900; text-transform: uppercase;
+            clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+            animation: slideDown 0.3s ease-out forwards;
+        }
+
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="scanline"></div>
+    <div id="toast-container"></div>
+
+    <div id="view-auth" class="view-panel active items-center justify-center p-6">
+        <div class="w-full max-w-sm border border-[#fcee0a44] p-8 bg-black relative clip-path-cyber cyber-glow">
+            <div class="absolute top-0 left-0 w-full h-1" style="background: var(--hazard); background-size: 20px 20px;"></div>
+            <div class="text-center mb-10 pt-4">
+                <h1 class="text-3xl font-black tracking-tighter text-[#fcee0a] italic">VKIX_OS</h1>
+                <p class="text-[7px] opacity-50 mt-1 uppercase tracking-[0.5em]">Open Protocol // No Key Required</p>
+            </div>
+            
+            <div class="space-y-6">
+                <div class="relative">
+                    <label class="absolute -top-2 left-2 bg-black px-1 text-[7px] font-bold text-[#fcee0a] tracking-widest">OPERATOR_HANDLE</label>
+                    <input type="text" id="auth-handle" placeholder="Enter ID to Uplink" 
+                           class="w-full bg-zinc-900/50 border border-zinc-800 p-4 text-xs outline-none text-[#fcee0a] focus:border-[#fcee0a] transition-colors clip-path-cyber">
+                </div>
+            </div>
+            
+            <button id="auth-btn" onclick="performAuth()" 
+                    class="w-full bg-[#fcee0a] hover:bg-white text-black font-black py-4 clip-path-cyber text-[11px] uppercase mt-10 active:scale-95 transition-all">
+                Establish_Connection
+            </button>
+            <p class="text-[6px] text-center mt-4 text-zinc-600 uppercase tracking-widest">Warning: Public Node Access Only</p>
+        </div>
+    </div>
+
+    <div id="view-main" class="view-panel max-w-md mx-auto border-x border-[#fcee0a11]">
+        <header class="h-16 border-b border-[#fcee0a11] flex items-center justify-between px-4 bg-black">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 clip-path-cyber border border-[#fcee0a55] bg-zinc-900 overflow-hidden" onclick="showView('view-profile')">
+                    <img id="header-avatar" src="" class="w-full h-full object-cover">
+                </div>
+                <div class="flex flex-col">
+                    <span id="header-handle" class="text-[10px] font-black text-[#fcee0a]">@...</span>
+                    <span class="text-[7px] text-green-500 font-bold tracking-widest animate-pulse">LIVE_LINK</span>
+                </div>
+            </div>
+        </header>
+
+        <div id="stream-container" class="flex-1 overflow-y-auto p-4 bg-[#050505]"></div>
+
+        <nav class="h-16 border-t border-[#fcee0a11] flex items-center justify-around bg-black">
+            <button onclick="openCompose()" class="w-14 h-14 bg-[#fcee0a] text-black clip-path-cyber -mt-8 flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+        </nav>
+    </div>
+
+    <div id="modal-compose" class="fixed inset-0 z-[3000] hidden items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+        <div class="w-full max-w-sm bg-black border border-[#fcee0a] p-6 clip-path-cyber">
+            <textarea id="post-text" placeholder="ENTER SIGNAL DATA..." class="w-full bg-zinc-950 p-3 text-xs text-[#fcee0a] mb-4 h-32 outline-none border border-zinc-800 focus:border-[#fcee0a] resize-none clip-path-cyber"></textarea>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeCompose()" class="px-4 py-2 text-[9px] text-zinc-500 font-bold uppercase">Abort</button>
+                <button onclick="submitPost()" class="px-6 py-2 bg-[#fcee0a] text-black text-[10px] font-black uppercase clip-path-cyber">Broadcast</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, collection, doc, setDoc, getDoc, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        // Modular Config - Injects if exists, otherwise uses placeholders
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "PLACEHOLDER",
+            authDomain: "YOUR_DOMAIN.firebaseapp.com",
+            projectId: "YOUR_PROJECT",
+            storageBucket: "YOUR_BUCKET",
+            messagingSenderId: "00000000",
+            appId: "0:000:web:000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = 'vkix-keyless-v1';
+
+        let user = null, userData = null;
+
+        const showToast = (msg) => {
+            const container = document.getElementById('toast-container');
+            const t = document.createElement('div');
+            t.className = 'toast';
+            t.innerText = msg;
+            container.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+        };
+
+        window.showView = (id) => {
+            document.querySelectorAll('.view-panel').forEach(v => v.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        };
+
+        // KEYLESS AUTH LOGIC
+        window.performAuth = async () => {
+            const h = document.getElementById('auth-handle').value.trim().toLowerCase();
+            if (!h || h.length < 3) return showToast("Handle too short (Min 3)");
+
+            const btn = document.getElementById('auth-btn');
+            btn.disabled = true; btn.innerText = "UPLINKING...";
+
+            try {
+                if (!auth.currentUser) await signInAnonymously(auth);
+                const uid = auth.currentUser.uid;
+                
+                // Check if handle exists
+                const lookupRef = doc(db, 'artifacts', appId, 'handles', h);
+                const lookup = await getDoc(lookupRef);
+
+                if (lookup.exists()) {
+                    // Logic: Auto-login to existing handle
+                    const uDoc = await getDoc(doc(db, 'artifacts', appId, 'users', lookup.data().uid));
+                    initUser(uDoc.data());
+                    showToast(`Welcome back, @${h}`);
+                } else {
+                    // Logic: Auto-create new handle
+                    const data = { uid, h, av: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${h}` };
+                    await setDoc(doc(db, 'artifacts', appId, 'users', uid), data);
+                    await setDoc(lookupRef, { uid, h });
+                    initUser(data);
+                    showToast(`Handle Registered: @${h}`);
+                }
+            } catch (e) {
+                showToast("Connection Refused");
+                btn.disabled = false; btn.innerText = "Establish_Connection";
+            }
+        };
+
+        const initUser = (data) => {
+            userData = data;
+            document.getElementById('header-avatar').src = data.av;
+            document.getElementById('header-handle').innerText = "@" + data.h.toUpperCase();
+            showView('view-main');
+            renderStream();
+        };
+
+        const renderStream = () => {
+            const q = query(collection(db, 'artifacts', appId, 'posts'), orderBy('ts', 'desc'), limit(40));
+            onSnapshot(q, (snap) => {
+                const container = document.getElementById('stream-container');
+                container.innerHTML = '';
+                snap.forEach(d => {
+                    const p = d.data();
+                    const div = document.createElement('div');
+                    div.className = "mb-8 pb-4 border-b border-zinc-900";
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 mb-2">
+                            <img src="${p.av}" class="w-6 h-6 clip-path-cyber">
+                            <span class="text-[9px] font-black text-[#fcee0a]">@${p.h.toUpperCase()}</span>
+                        </div>
+                        <p class="text-[11px] text-zinc-300 leading-relaxed">${p.txt}</p>
+                    `;
+                    container.appendChild(div);
+                });
+            });
+        };
+
+        window.submitPost = async () => {
+            const txt = document.getElementById('post-text').value.trim();
+            if (!txt) return;
+            try {
+                await addDoc(collection(db, 'artifacts', appId, 'posts'), {
+                    uid: userData.uid, h: userData.h, av: userData.av, txt, ts: serverTimestamp()
+                });
+                closeCompose();
+            } catch(e) { showToast("Upload Failed"); }
+        };
+
+        window.openCompose = () => document.getElementById('modal-compose').classList.remove('hidden');
+        window.closeCompose = () => document.getElementById('modal-compose').classList.add('hidden');
+
+    </script>
+</body>
+</html>
